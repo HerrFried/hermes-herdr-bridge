@@ -1,0 +1,12 @@
+name: hermes_herdr_bridge
+version: 0.1.0
+description: Experimental Hermes to Herdr terminal status bridge
+kind: standalone
+provides_hooks:
+  - on_session_open
+  - pre_llm_call
+  - on_session_end
+  - on_human_input_request
+  - on_human_input_resolved
+provides_middleware:
+  - tool_execution

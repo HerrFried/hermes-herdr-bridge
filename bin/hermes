@@ -1,0 +1,59 @@
+#!/usr/bin/env python3
+# hermes-herdr-bridge-wrapper-v1
+"""Standalone entry point for the Hermes–Herdr wrapper."""
+import os
+from pathlib import Path
+import sys
+
+ENTRY = Path(__file__).resolve()
+LAUNCHER = ENTRY.parent.parent / 'launcher.py'
+
+
+def is_self(path):
+    for candidate in (ENTRY, LAUNCHER):
+        try:
+            if os.path.samefile(path, candidate):
+                return True
+        except OSError:
+            pass
+    return False
+
+
+def is_bridge(path):
+    """Skip our own and recognizable independently copied bridge wrappers."""
+    if is_self(path):
+        return True
+    try:
+        with open(path, 'rb') as stream:
+            header = stream.read(4096)
+    except OSError:
+        return False
+    return (b'hermes-herdr-bridge-wrapper-v1' in header or
+            (b'LAUNCHER = ENTRY.parent.parent' in header and b'hermes-herdr: invalid or recursive' in header))
+
+
+def main():
+    target = os.environ.get('HERMES_HERDR_REAL')
+    if target:
+        if not os.path.isabs(target) or is_bridge(target):
+            print('hermes-herdr: invalid or recursive HERMES_HERDR_REAL', file=sys.stderr)
+            return 127
+    else:
+        for directory in os.get_exec_path():
+            candidate = os.path.abspath(os.path.join(directory or os.curdir, 'hermes'))
+            if os.path.isfile(candidate) and os.access(candidate, os.X_OK) and not is_bridge(candidate):
+                target = candidate
+                break
+        if not target:
+            print('hermes-herdr: real hermes executable not found on PATH', file=sys.stderr)
+            return 127
+    os.environ['HERMES_HERDR_REAL'] = target
+    try:
+        os.execv(sys.executable, [sys.executable, '-B', str(LAUNCHER), *sys.argv[1:]])
+    except OSError as exc:
+        print('hermes-herdr: cannot start launcher: {}'.format(exc.strerror), file=sys.stderr)
+        return 127
+
+
+if __name__ == '__main__':
+    sys.exit(main())
